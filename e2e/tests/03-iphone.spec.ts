@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectPlaying, openItem, shotDir } from './helpers';
+import { bringToFront, expectPlaying, fakeServerUpdate, markDocument, markerGone, openItem, shotDir } from './helpers';
 
 test('iPhone layout, PWA manifest and inline remux playback', async ({ page }) => {
   await page.goto('/');
@@ -28,4 +28,39 @@ test('iPhone layout, PWA manifest and inline remux playback', async ({ page }) =
   await page.getByTestId('play-pause').tap();
   await expect.poll(() => page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).paused)).toBe(true);
   await page.screenshot({ path: shotDir + '/12-iphone-player.png' });
+});
+
+test('iPhone app reloads into a server update; waits while typing', async ({ page }) => {
+  const update = await fakeServerUpdate(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Recently Added' })).toBeVisible();
+  await page.getByRole('link', { name: 'Torrent' }).first().click();
+  const search = page.locator('input.search-input');
+  await search.click();
+  await search.pressSequentially('Movie');
+  await markDocument(page);
+
+  // Coming back to the app while typing: no reload, a bar instead.
+  update();
+  await bringToFront(page);
+  await expect(page.getByTestId('update-bar')).toContainText(/updated to .*-next1/);
+  expect(await markerGone(page)).toBe(false);
+  await page.screenshot({ path: shotDir + '/12b-iphone-update-bar.png' });
+
+  // Done typing: the page reloads by itself.
+  await search.blur();
+  await expect.poll(() => markerGone(page)).toBe(true);
+  await expect(page.locator('.toast')).toContainText(/Updated to .*-next1/);
+
+  // Same version again: no reload loop.
+  await markDocument(page);
+  await bringToFront(page);
+  await page.waitForTimeout(1000);
+  expect(await markerGone(page)).toBe(false);
+
+  // Browsing (nothing playing or typed): the next update reloads straight away.
+  update();
+  await bringToFront(page);
+  await expect.poll(() => markerGone(page)).toBe(true);
+  await expect(page.locator('.toast')).toContainText(/Updated to .*-next2/);
 });

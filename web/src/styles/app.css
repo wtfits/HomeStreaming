@@ -302,6 +302,28 @@ input[type='range'] {
   border-radius: 50%;
   background: var(--accent);
 }
+.update-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + var(--safe-b));
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  max-width: 92vw;
+  padding: 8px 8px 8px 16px;
+  border-radius: 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+}
+.update-bar span {
+  margin-right: 12px;
+}
+.update-bar .btn {
+  margin: 0;
+}
 .update-notes {
   margin: 12px 0 4px;
 }
@@ -1029,6 +1051,11 @@ video::cue {
   }
   .search-input {
     min-width: 0;
+  }
+  .toolbar-right select {
+    width: auto;
+    -webkit-box-flex: 0;
+    flex: none;
   }
   .episode-art {
     flex-basis: 128px;

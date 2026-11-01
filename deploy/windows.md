@@ -100,7 +100,7 @@ HomeStreaming checks GitHub for a new release every 6 hours. When one is out, th
 3. renames the current program to `homestreaming.old.exe` and puts the new one in its place;
 4. restarts the service. If the new version does not answer within 90 seconds, the old one is put back and restarted automatically, and Admin → Updates says why.
 
-Playback stops for about 30 seconds during the restart; the page reloads by itself when the new version is up. A log of each restart is in `C:\ProgramData\HomeStreaming\logs\update.log`.
+Playback stops for about 30 seconds during the restart; the page reloads by itself when the new version is up. The TV and iPhone need nothing: they load HomeStreaming from the PC, and an open page reloads into the new version on its own: straight away when you are browsing, after you leave the player when something is playing, and after you finish typing in a search or password box. A log of each restart is in `C:\ProgramData\HomeStreaming\logs\update.log`.
 
 One-click install needs the Windows service (step 4), because only the service can write to `C:\Program Files`. If you run HomeStreaming in a terminal instead, Admin → Updates says so; install from an **Administrator** PowerShell and restart it yourself:
 

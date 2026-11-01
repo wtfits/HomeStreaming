@@ -6,9 +6,11 @@ export interface AppState {
   info: SystemInfo | null;
   user: User | null;
   connection: Connection | null;
+  /** Set when the server runs a newer version than this page (see updateWatch). */
+  updatedTo: string | null;
 }
 
-let state: AppState = { info: null, user: null, connection: null };
+let state: AppState = { info: null, user: null, connection: null, updatedTo: null };
 const listeners = new Set<() => void>();
 
 export function getState(): AppState {

@@ -1,7 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { api, ApiError, Connection, setToken, setUnauthorizedHandler, SystemInfo, User } from './api';
-import { ErrorBox, Spinner, ToastHost } from './components/ui';
+import { ErrorBox, Spinner, toast, ToastHost } from './components/ui';
 import { applyModeClasses, isTV } from './device';
 import { t } from './i18n/en';
 import { focusFirst, installSpatialNav } from './nav/spatial';
@@ -15,6 +15,7 @@ import { Login } from './screens/Login';
 import { Settings } from './screens/Settings';
 import { Setup } from './screens/Setup';
 import { setState, useAppState } from './state';
+import { reloadNow, startUpdateWatch, takeReloadedVersion } from './updateWatch';
 import './styles/app.css';
 
 function NavBar() {
@@ -74,6 +75,7 @@ function App() {
     try {
       const i = await api<SystemInfo>('GET', '/system/info');
       setState({ info: i });
+      startUpdateWatch();
       if (i.setupRequired) {
         setBoot('ready');
         navigate('/setup', true);
@@ -104,6 +106,8 @@ function App() {
       navigate('/login', true);
     });
     bootstrap();
+    const updated = takeReloadedVersion();
+    if (updated) setTimeout(() => toast(t('updatedToast', { version: updated })), 600);
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
@@ -154,10 +158,27 @@ function App() {
   );
 }
 
+/** Shown when the server was updated but this page could not reload yet
+ * (text being typed); hidden in the player, which reloads on exit. */
+function UpdateBar() {
+  const { updatedTo } = useAppState();
+  const route = useRoute();
+  if (!updatedTo || route.segments[0] === 'play') return null;
+  return (
+    <div class="update-bar" role="status" data-testid="update-bar">
+      <span>{t('updatedBar', { version: updatedTo })}</span>
+      <button class="btn btn-small btn-primary" onClick={reloadNow}>
+        {t('reload')}
+      </button>
+    </div>
+  );
+}
+
 function Root() {
   return (
     <>
       <App />
+      <UpdateBar />
       <ToastHost />
     </>
   );

@@ -49,3 +49,37 @@ export async function pressKeyCode(page: Page, keyCode: number) {
     (document.activeElement || document.body).dispatchEvent(ev);
   }, keyCode);
 }
+
+/**
+ * Pretends the server gets updated: each call of the returned function makes
+ * /system/info report a newer version ("<real>-next1", "-next2", ...).
+ */
+export async function fakeServerUpdate(page: Page): Promise<() => void> {
+  let n = 0;
+  await page.route('**/api/v1/system/info', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    if (n > 0) body.version = String(body.version) + '-next' + n;
+    await route.fulfill({ response: res, json: body });
+  });
+  return () => {
+    n++;
+  };
+}
+
+/** Marks the current document; markerGone() turns true after a reload. */
+export async function markDocument(page: Page) {
+  await page.evaluate(() => ((window as any).__hsMarker = 1));
+}
+export async function markerGone(page: Page): Promise<boolean> {
+  try {
+    return await page.evaluate(() => (window as any).__hsMarker !== 1);
+  } catch (_) {
+    return false; // navigation in progress; poll again
+  }
+}
+
+/** What the page does when the TV app or iPhone app comes back to the front. */
+export async function bringToFront(page: Page) {
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+}
