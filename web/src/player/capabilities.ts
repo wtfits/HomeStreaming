@@ -22,13 +22,15 @@ export interface Profile {
   audioCodecs: string[];
   maxAudioChannels: number;
   hlsVideoCodecs: string[];
+  /** Audio the HLS engine accepts in segments (MediaSource for hls.js). */
+  hlsAudioCodecs: string[];
   maxBitrateKbps: number;
   forceTranscode: boolean;
 }
 
 const HDR_ALL = ['hdr10', 'hlg', 'dolbyvision'];
 
-function base(p: Platform): Omit<Profile, 'deviceId' | 'deviceName' | 'clientType' | 'engine' | 'maxBitrateKbps' | 'forceTranscode'> {
+function base(p: Platform): Omit<Profile, 'deviceId' | 'deviceName' | 'clientType' | 'engine' | 'maxBitrateKbps' | 'forceTranscode' | 'hlsAudioCodecs'> {
   switch (p) {
     case 'ios':
       return {
@@ -110,6 +112,7 @@ const PROBES = {
   av1: 'video/mp4; codecs="av01.0.08M.08"',
   aac: 'audio/mp4; codecs="mp4a.40.2"',
   mp3: 'audio/mpeg',
+  mp3mp4: 'audio/mp4; codecs="mp4a.40.34"',
   ac3: 'audio/mp4; codecs="ac-3"',
   eac3: 'audio/mp4; codecs="ec-3"',
   flac: 'audio/mp4; codecs="flac"',
@@ -168,8 +171,20 @@ export async function buildProfile(): Promise<Profile> {
   if (p === 'desktop' && !supported('native', PROBES.mkv) && !/Chrome\//.test(navigator.userAgent)) {
     containers = containers.filter((c) => c !== 'matroska');
   }
-  const hlsVideoCodecs = b.hlsVideoCodecs.filter((c) => videoCodecs.some((v) => v.codec === c));
+  // HLS segments are fMP4: with hls.js only what MediaSource accepts works,
+  // even when the <video> element plays the same codec in a file (webOS + AC-3).
+  let hlsAudioCodecs = audioCodecs.slice();
+  if (engine === 'hlsjs') {
+    const mseProbe: Record<string, string> = { mp3: PROBES.mp3mp4 };
+    hlsAudioCodecs = audioCodecs.filter((a) => a === 'aac' || supported('hlsjs', mseProbe[a] || PROBES[a] || '') === 'probably');
+  }
+  if (hlsAudioCodecs.indexOf('aac') < 0) hlsAudioCodecs.unshift('aac');
+  // Formats this device's MediaSource refused before, although it claimed support.
+  const rejected = rejectedCodecs();
+  hlsAudioCodecs = hlsAudioCodecs.filter((a) => rejected.indexOf(a) < 0);
+  let hlsVideoCodecs = b.hlsVideoCodecs.filter((c) => videoCodecs.some((v) => v.codec === c));
   if (videoCodecs.some((v) => v.codec === 'hevc') && hlsVideoCodecs.indexOf('hevc') < 0) hlsVideoCodecs.push('hevc');
+  hlsVideoCodecs = hlsVideoCodecs.filter((c) => c === 'h264' || rejected.indexOf(c) < 0);
 
   cached = {
     deviceId: deviceId(),
@@ -182,6 +197,7 @@ export async function buildProfile(): Promise<Profile> {
     audioCodecs,
     maxAudioChannels: b.maxAudioChannels,
     hlsVideoCodecs,
+    hlsAudioCodecs,
     maxBitrateKbps: 0,
     forceTranscode: false,
   };
@@ -193,6 +209,53 @@ function withUserPrefs(p: Profile): Profile {
     ...p,
     maxBitrateKbps: parseInt(prefs.get('maxBitrate') || '0', 10) || 0,
     forceTranscode: prefs.get('forceTranscode') === '1',
+  };
+}
+
+const REJECTED_KEY = 'mseRejected';
+
+function rejectedCodecs(): string[] {
+  return (prefs.get(REJECTED_KEY) || '').split(',').filter(Boolean);
+}
+
+/**
+ * Remembers a codec this device's MediaSource refused (hls.js
+ * bufferAddCodecError carries the mime type), so the next play-info asks
+ * the server for something else. H.264 and AAC are never excluded: they are
+ * the fallback.
+ */
+export function rememberRejectedMime(mime: string) {
+  const m = mime.toLowerCase();
+  const map: [RegExp, string][] = [
+    [/ac-3/, 'ac3'],
+    [/ec-3/, 'eac3'],
+    [/hvc1|hev1/, 'hevc'],
+    [/flac/, 'flac'],
+    [/opus/, 'opus'],
+    [/mp4a\.40\.34|mp4a\.6b/, 'mp3'],
+    [/alac/, 'alac'],
+  ];
+  const list = rejectedCodecs();
+  for (const [re, codec] of map) {
+    if (re.test(m) && list.indexOf(codec) < 0) list.push(codec);
+  }
+  prefs.set(REJECTED_KEY, list.length ? list.join(',') : null);
+  cached = null;
+}
+
+/**
+ * The most compatible profile, used after a playback error: H.264 video and
+ * AAC stereo audio, transcoded, which every browser's MediaSource accepts.
+ */
+export function safeProfile(p: Profile): Profile {
+  return {
+    ...p,
+    forceTranscode: true,
+    videoCodecs: p.videoCodecs.filter((v) => v.codec === 'h264').map((v) => ({ ...v, maxLevel: Math.min(v.maxLevel || 51, 51) })),
+    hlsVideoCodecs: ['h264'],
+    hlsAudioCodecs: ['aac'],
+    audioCodecs: ['aac'],
+    maxAudioChannels: 2,
   };
 }
 

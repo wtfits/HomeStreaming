@@ -185,6 +185,7 @@ func Decide(in Input) Decision {
 		reasons = addReason(reasons, "bitrate")
 	}
 	audioOK := true
+	hlsAudioOK := audio != nil && contains(p.hlsAudio(), audio.Codec) && audio.Channels <= p.MaxAudioChannels
 	if audio != nil {
 		if !contains(p.AudioCodecs, audio.Codec) {
 			audioOK = false
@@ -215,7 +216,7 @@ func Decide(in Input) Decision {
 		d.Reasons = reasons
 		d.Video = VideoPlan{Action: "copy", Codec: v.Codec, Width: v.Width, Height: v.Height, HDR: v.HDR != "" && sourceHDRKind(v) != "dv5",
 			Transfer: v.ColorTransfer}
-		d.Audio = planAudio(in, audio, audioOK)
+		d.Audio = planAudio(in, audio, hlsAudioOK)
 		return d
 	}
 	if videoOK && !hlsOK {
@@ -223,11 +224,13 @@ func Decide(in Input) Decision {
 	}
 	d.Method = "transcode"
 	d.Reasons = reasons
-	d.Audio = planAudio(in, audio, audioOK)
+	d.Audio = planAudio(in, audio, hlsAudioOK)
 	d.Video = planVideo(in, v, d.Audio)
 	return d
 }
 
+// planAudio picks the audio of an HLS session; audioOK says whether the HLS
+// engine can take the source codec as is.
 func planAudio(in Input, a *db.MediaStream, audioOK bool) AudioPlan {
 	if a == nil {
 		return AudioPlan{Action: "none", Index: -1}
@@ -247,7 +250,7 @@ func planAudio(in Input, a *db.MediaStream, audioOK bool) AudioPlan {
 		return AudioPlan{Action: "copy", Codec: a.Codec, Channels: a.Channels, BitrateKbps: br, Index: a.Index}
 	}
 	pref := in.AudioCodecPref
-	if pref != "aac" && a.Channels > 2 && contains(p.AudioCodecs, "ac3") && roomy && p.MaxAudioChannels >= 6 {
+	if pref != "aac" && a.Channels > 2 && contains(p.hlsAudio(), "ac3") && roomy && p.MaxAudioChannels >= 6 {
 		return AudioPlan{Action: "encode", Codec: "ac3", Channels: 6, BitrateKbps: 640, Index: a.Index}
 	}
 	return AudioPlan{Action: "encode", Codec: "aac", Channels: 2, BitrateKbps: 192, Index: a.Index}

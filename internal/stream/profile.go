@@ -26,8 +26,13 @@ type Profile struct {
 	AudioCodecs      []string        `json:"audioCodecs"`
 	MaxAudioChannels int             `json:"maxAudioChannels"`
 	HLSVideoCodecs   []string        `json:"hlsVideoCodecs"`
-	MaxBitrateKbps   int             `json:"maxBitrateKbps"`
-	ForceTranscode   bool            `json:"forceTranscode"`
+	// HLSAudioCodecs are the audio codecs the HLS engine accepts in fMP4
+	// segments. With hls.js that is what MediaSource accepts, which can be less
+	// than the <video> element plays directly (the LG webOS browser decodes AC-3
+	// in files but may refuse it in MediaSource). Empty = AudioCodecs.
+	HLSAudioCodecs []string `json:"hlsAudioCodecs,omitempty"`
+	MaxBitrateKbps int      `json:"maxBitrateKbps"`
+	ForceTranscode bool     `json:"forceTranscode"`
 }
 
 // CodecOverride adds/removes entries for a platform (admin setting).
@@ -105,6 +110,9 @@ func (p *Profile) Normalize() {
 	if len(p.HLSVideoCodecs) == 0 {
 		p.HLSVideoCodecs = base.HLSVideoCodecs
 	}
+	if len(p.HLSAudioCodecs) == 0 {
+		p.HLSAudioCodecs = append([]string(nil), p.AudioCodecs...)
+	}
 	for i := range p.Containers {
 		p.Containers[i] = strings.ToLower(p.Containers[i])
 	}
@@ -113,6 +121,9 @@ func (p *Profile) Normalize() {
 	}
 	for i := range p.HLSVideoCodecs {
 		p.HLSVideoCodecs[i] = strings.ToLower(p.HLSVideoCodecs[i])
+	}
+	for i := range p.HLSAudioCodecs {
+		p.HLSAudioCodecs[i] = strings.ToLower(p.HLSAudioCodecs[i])
 	}
 	for i := range p.VideoCodecs {
 		p.VideoCodecs[i].Codec = strings.ToLower(p.VideoCodecs[i].Codec)
@@ -123,6 +134,9 @@ func (p *Profile) Normalize() {
 func (p *Profile) ApplyOverride(o PlatformOverride) {
 	if o.AudioCodecs != nil {
 		p.AudioCodecs = applyList(p.AudioCodecs, *o.AudioCodecs)
+		if len(p.HLSAudioCodecs) > 0 {
+			p.HLSAudioCodecs = applyList(p.HLSAudioCodecs, CodecOverride{Remove: o.AudioCodecs.Remove})
+		}
 	}
 	if o.Containers != nil {
 		p.Containers = applyList(p.Containers, *o.Containers)
@@ -172,6 +186,14 @@ func applyList(list []string, o CodecOverride) []string {
 		}
 	}
 	return out
+}
+
+// hlsAudio returns the audio codecs usable in HLS segments.
+func (p *Profile) hlsAudio() []string {
+	if len(p.HLSAudioCodecs) > 0 {
+		return p.HLSAudioCodecs
+	}
+	return p.AudioCodecs
 }
 
 func (p *Profile) videoCap(codec string) *VideoCodecCap {

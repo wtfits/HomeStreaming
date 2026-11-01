@@ -489,6 +489,7 @@ func (s *Server) applyProgress(ctx context.Context, userID string, it *db.Item, 
 type progressRequest struct {
 	PositionMs int64  `json:"positionMs"`
 	State      string `json:"state"`
+	Error      string `json:"error,omitempty"` // client playback error, logged
 }
 
 func (s *Server) handleItemProgress(w http.ResponseWriter, r *http.Request) {

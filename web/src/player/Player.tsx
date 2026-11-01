@@ -6,7 +6,7 @@ import { isIOS, isTV } from '../device';
 import { t } from '../i18n/en';
 import { focusEl, isBackKey, KEY, setPlayerKeys } from '../nav/spatial';
 import { navigate, Route } from '../router';
-import { buildProfile } from './capabilities';
+import { buildProfile, rememberRejectedMime, safeProfile } from './capabilities';
 
 const QUALITIES = [0, 20000, 10000, 8000, 4000, 2000, 1000];
 const REASON_TEXT: Record<string, string> = {
@@ -129,11 +129,11 @@ export function Player({ route }: { route: Route }) {
     }
   };
 
-  const start = async (opts: { startMs: number; audio?: number | null; sub?: string | null; force?: boolean; replaces?: string }) => {
+  const start = async (opts: { startMs: number; audio?: number | null; sub?: string | null; safe?: boolean; replaces?: string }) => {
     setError(null);
     setWaiting(true);
-    const profile = await buildProfile();
-    if (opts.force) profile.forceTranscode = true;
+    let profile = await buildProfile();
+    if (opts.safe) profile = safeProfile(profile);
     const body: Record<string, unknown> = { profile, startPositionMs: Math.max(0, Math.round(opts.startMs)) };
     if (opts.audio !== undefined && opts.audio !== null) body.audioTrackId = opts.audio;
     if (opts.sub !== undefined) body.subtitleTrackId = opts.sub;
@@ -171,7 +171,13 @@ export function Player({ route }: { route: Route }) {
       });
       hlsRef.current = hls;
       hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) onMediaError('hls: ' + data.details);
+        const d = data as any;
+        if (data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR && d.mimeType) rememberRejectedMime(String(d.mimeType));
+        if (!data.fatal) return;
+        let detail = 'hls: ' + data.details;
+        if (d.mimeType) detail += ' ' + d.mimeType;
+        else if (d.error && d.error.message) detail += ' ' + String(d.error.message).slice(0, 160);
+        onMediaError(detail);
       });
       hls.loadSource(url);
       hls.attachMedia(v);
@@ -199,10 +205,12 @@ export function Player({ route }: { route: Route }) {
   const onMediaError = (detail: string) => {
     const i = infoRef.current;
     if (!i || exitingRef.current) return;
+    // Tell the server (it logs it), so failures on the TV can be diagnosed.
+    api('POST', '/play/' + i.playSessionId + '/progress', { positionMs: absPos(), state: 'paused', error: detail }).catch(() => undefined);
     if (!retriedRef.current) {
       retriedRef.current = true;
       setNotice(t('retryingTranscode'));
-      start({ startMs: absPos(), audio: i.audioTrackId, sub: i.subtitleTrackId, force: true, replaces: i.playSessionId });
+      start({ startMs: absPos(), audio: i.audioTrackId, sub: i.subtitleTrackId, safe: true, replaces: i.playSessionId });
       return;
     }
     setError(t('playbackError') + ' (' + detail + ')');

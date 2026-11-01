@@ -268,8 +268,9 @@ Request:
   "videoCodecs": [ { "codec": "h264", "maxLevel": 52, "maxBitDepth": 8, "maxWidth": 3840, "maxHeight": 2160 },
                    { "codec": "hevc", "maxLevel": 153, "maxBitDepth": 10, "maxWidth": 3840, "maxHeight": 2160, "hdr": ["hdr10","hlg","dolbyvision"] } ],
   "audioCodecs": ["aac","mp3","ac3","eac3","alac","flac"], "maxAudioChannels": 6,
-  "hlsVideoCodecs": ["h264","hevc"] }
+  "hlsVideoCodecs": ["h264","hevc"], "hlsAudioCodecs": ["aac","mp3","ac3","eac3","alac","flac"] }
 ```
+`audioCodecs` is what plays directly (a file in `<video>`); `hlsAudioCodecs` is what the HLS engine accepts in segments. With hls.js that is what `MediaSource.isTypeSupported` accepts, which can be less (the LG webOS browser decodes AC-3 in files but may refuse it through MediaSource). Remux/transcode copy or encode audio only into `hlsAudioCodecs`; omitted = `audioCodecs`.
 
 Response `201`:
 ```json

@@ -67,3 +67,24 @@ test('webOS: picks up a server update after playback, never during it', async ({
   await expect(page.locator('.toast')).toContainText(/Updated to .*-next1/);
   await page.screenshot({ path: shotDir + '/16-tv-updated.png' });
 });
+
+// The LG browser decodes AC-3 in files but its MediaSource (used by hls.js)
+// may not; neither does headless Chromium, so this reproduces the TV case:
+// the session must carry audio the MediaSource accepts (AAC), not AC-3.
+test('webOS: AC-3 in MKV streams with audio MediaSource accepts', async ({ page }) => {
+  const mseAc3 = await page.evaluate(() => (window as any).MediaSource.isTypeSupported('audio/mp4; codecs="ac-3"'));
+  await openItem(page, 'Third Movie', 'movie');
+  await page.getByLabel('Audio').selectOption({ index: 0 }); // Russian AC-3 5.1
+  const pi = page.waitForRequest((r) => r.url().includes('/play-info'));
+  const res = page.waitForResponse((r) => r.url().includes('/play-info'));
+  await page.getByRole('link', { name: /^▶ (Play|Resume)/ }).click();
+  const sent = (await pi).postDataJSON();
+  const body = await (await res).json();
+  if (!mseAc3) {
+    expect(sent.profile.hlsAudioCodecs).not.toContain('ac3');
+    expect(body.transcode.audio.codec).toBe('aac');
+  }
+  expect(sent.profile.audioCodecs).toContain('ac3'); // direct play of AC-3 files stays allowed
+  await expectPlaying(page, 1);
+  await expect(page.locator('.player-error')).toHaveCount(0);
+});

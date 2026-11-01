@@ -141,6 +141,49 @@ func TestForceTranscode(t *testing.T) {
 	}
 }
 
+// The LG webOS browser plays AC-3 in files but its MediaSource may refuse it:
+// HLS sessions must then carry AAC, while direct play keeps AC-3.
+func TestHLSAudioCodecsLimitStreamingAudio(t *testing.T) {
+	mkvDTS := src{container: "matroska", bitrate: 16_000_000, v: hevc10HDR(3840, 2160), audio: []db.MediaStream{aud(1, "dts", 6, "rus"), aud(3, "dts", 6, "eng")}}
+	mkvDTS.v.HDR, mkvDTS.v.ColorTransfer = "", "bt709"
+	mkvAC3 := src{container: "matroska", bitrate: 5_000_000, v: h264(1920, 1080), audio: []db.MediaStream{aud(1, "ac3", 6, "eng")}}
+	mp4AC3 := mkvAC3
+	mp4AC3.container = "mp4"
+
+	mse := func(in Input) Input {
+		in.Profile.HLSAudioCodecs = []string{"aac", "mp3"}
+		return in
+	}
+	cases := []struct {
+		name   string
+		in     Input
+		method string
+		action string
+		codec  string
+		ch     int
+	}{
+		{"webOS MSE without AC-3: DTS → AAC stereo", mse(mkvDTS.input("webos", 3, 0, nvenc)), "remux", "encode", "aac", 2},
+		{"webOS MSE without AC-3: AC-3 not copied", mse(mkvAC3.input("webos", 1, 0, nvenc)), "remux", "encode", "aac", 2},
+		{"webOS MSE without AC-3: direct play keeps AC-3", mse(mp4AC3.input("webos", 1, 0, nvenc)), "direct", "copy", "ac3", 6},
+		{"webOS MSE with AC-3: DTS → AC-3 5.1", mkvDTS.input("webos", 3, 0, nvenc), "remux", "encode", "ac3", 6},
+		{"webOS MSE with AC-3: AC-3 copied", mkvAC3.input("webos", 1, 0, nvenc), "remux", "copy", "ac3", 6},
+	}
+	for _, c := range cases {
+		d := Decide(c.in)
+		if d.Method != c.method || d.Audio.Action != c.action || d.Audio.Codec != c.codec || d.Audio.Channels != c.ch {
+			t.Errorf("%s: got %s audio %s %s %dch, want %s audio %s %s %dch", c.name, d.Method, d.Audio.Action, d.Audio.Codec, d.Audio.Channels,
+				c.method, c.action, c.codec, c.ch)
+		}
+	}
+
+	// Normalize: a client that does not send hlsAudioCodecs keeps the old behaviour.
+	p := Profile{Platform: "webos", AudioCodecs: []string{"AAC", "AC3"}}
+	p.Normalize()
+	if !reflect.DeepEqual(p.HLSAudioCodecs, []string{"aac", "ac3"}) {
+		t.Fatalf("normalize: %v", p.HLSAudioCodecs)
+	}
+}
+
 func TestPlaylists(t *testing.T) {
 	pl := MediaPlaylist(20500, 6, "")
 	if strings.Count(pl, "#EXTINF:") != 4 || !strings.Contains(pl, "#EXTINF:2.500000,\nseg00003.m4s") || !strings.HasSuffix(pl, "#EXT-X-ENDLIST\n") {

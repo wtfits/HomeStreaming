@@ -98,7 +98,7 @@ export const en = {
   playingIn: 'Playing in {n} s',
   playNow: 'Play now',
   playbackError: 'Playback failed.',
-  retryingTranscode: 'Retrying with transcoding…',
+  retryingTranscode: 'Retrying in compatible mode (H.264 + AAC)…',
   busy: 'The server is busy transcoding other streams.',
   ffmpegMissing: 'The server cannot play this: ffmpeg is missing.',
   fullscreen: 'Fullscreen',

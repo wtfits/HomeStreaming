@@ -196,7 +196,9 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 		plan := sess.CurrentPlan()
 		resp["transcode"] = map[string]any{"backend": stream.BackendOf(plan), "hwDecode": plan.HWDecode, "video": plan, "audio": dec.Audio}
 		s.Log.Info("play session", "session", sess.ID, "item", it.Title, "method", dec.Method, "reasons", strings.Join(dec.Reasons, ","),
-			"backend", stream.BackendOf(plan), "class", class, "capKbps", capKbps)
+			"backend", stream.BackendOf(plan), "class", class, "capKbps", capKbps, "platform", prof.Platform,
+			"video", plan.Action+" "+plan.Codec+" "+itoa(plan.Height)+"p",
+			"audio", dec.Audio.Action+" "+dec.Audio.Codec+" "+itoa(dec.Audio.Channels)+"ch", "hlsAudio", strings.Join(prof.HLSAudioCodecs, ","))
 	}
 	// Remember the chosen languages for this item.
 	if u, err := s.DB.GetUserData(ctx, id.User.ID, it.ID); err == nil {
@@ -395,6 +397,13 @@ func (s *Server) handleSessionProgress(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &req); err != nil {
 		badRequest(w, "invalid JSON")
 		return
+	}
+	if req.Error != "" {
+		msg := req.Error
+		if len(msg) > 300 {
+			msg = msg[:300]
+		}
+		s.Log.Warn("client playback error", "session", sess.ID, "error", msg, "positionMs", req.PositionMs, "ip", s.Resolver.ClientIP(r).String())
 	}
 	sess.SetProgress(req.PositionMs, req.State)
 	it, err := s.DB.GetItem(r.Context(), sess.ItemID)
