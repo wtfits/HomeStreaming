@@ -1,0 +1,17 @@
+# Build outputs
+/bin/
+/dist/
+web/dist/*
+!web/dist/.keep
+web/node_modules/
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+node_modules/
+
+# Local data
+/data/
+*.db
+*.db-wal
+*.db-shm
+.tmp/
