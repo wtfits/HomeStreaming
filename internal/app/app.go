@@ -26,6 +26,7 @@ import (
 	"github.com/wtfits/homestreaming/internal/netutil"
 	"github.com/wtfits/homestreaming/internal/stream"
 	"github.com/wtfits/homestreaming/internal/tasks"
+	"github.com/wtfits/homestreaming/internal/update"
 	"github.com/wtfits/homestreaming/web"
 )
 
@@ -37,6 +38,10 @@ type Options struct {
 	IdleTimeout time.Duration // 0 = default 60 s
 	NoWatcher   bool
 	NoStartScan bool
+	// Activate restarts into a freshly installed update (the Windows service
+	// uses a helper process); nil means the user restarts by hand.
+	Activate      update.Activator
+	NoUpdateCheck bool
 }
 
 // App is a running server instance.
@@ -49,6 +54,7 @@ type App struct {
 	Watcher  *library.Watcher
 	Sessions *stream.Manager
 	Tools    *ffmpeg.Toolbox
+	Updater  *update.Updater
 	closeLog func()
 }
 
@@ -125,7 +131,10 @@ func New(ctx context.Context, cfg *config.Config, opt Options) (*App, error) {
 	}
 	srv.Sessions = sessions
 	srv.Subs = &stream.Subtitles{FFmpeg: tools.FFmpeg, CacheDir: filepath.Join(cfg.DataDir, "cache", "subtitles")}
-	a := &App{Cfg: cfg, DB: d, API: srv, Log: log, Scanner: scanner, Watcher: watcher, Sessions: sessions, Tools: tools, closeLog: closeLog}
+	up := &update.Updater{Repo: cfg.Update.Repo, Current: opt.Version, DataDir: cfg.DataDir, Log: log, Activate: opt.Activate}
+	up.RecordStartup()
+	srv.Updater = up
+	a := &App{Cfg: cfg, DB: d, API: srv, Log: log, Scanner: scanner, Watcher: watcher, Sessions: sessions, Tools: tools, Updater: up, closeLog: closeLog}
 	srv.OnFFmpegFound = func() {
 		log.Info("ffmpeg is now available; rescanning libraries")
 		a.scanAll(context.WithoutCancel(ctx))
@@ -162,6 +171,9 @@ func (a *App) background(ctx context.Context, opt Options) {
 	go a.Sessions.Run(ctx)
 	if !opt.NoWatcher {
 		a.Watcher.Sync(ctx)
+	}
+	if a.Cfg.Update.Check && !opt.NoUpdateCheck {
+		go a.Updater.Run(ctx, 2*time.Minute, 6*time.Hour)
 	}
 	if !opt.NoStartScan {
 		a.scanAll(ctx)

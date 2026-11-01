@@ -146,6 +146,23 @@ Response `201`: same as `POST /auth/login` (session created, cookie set). `403 s
   "libraries": [ { "id": "…", "name": "…", "counts": { … } } ] }
 ```
 
+### `GET /admin/update` (admin)
+```json
+{ "current": "v0.1.7", "devBuild": false, "repo": "wtfits/HomeStreaming",
+  "latest": { "version": "v0.1.9", "name": "v0.1.9", "notes": "- …", "url": "https://github.com/…/releases/tag/v0.1.9", "publishedAt": "…" },
+  "available": true, "checkedAt": "…", "checkError": "",
+  "canInstall": true, "cannotInstallReason": "",
+  "state": "idle", "error": "", "downloadedBytes": 0, "totalBytes": 0,
+  "lastResult": { "from": "v0.1.7", "to": "v0.1.8", "ok": true, "message": "Updated from v0.1.7 to v0.1.8.", "at": "…" },
+  "activePlaySessions": 0 }
+```
+`latest` is the newest published GitHub release (`null` before the first check or when none exists). `devBuild` is true when the running version is not a release (`a2d4144`, `0.1.0-dev`); any release counts as newer then. `state ∈ idle | downloading | installing | restarting | restart_required | failed`. The server checks every 6 h (`[update] check` in `config.toml`).
+
+### `POST /admin/update/check` (admin) → `200` same body as `GET /admin/update`; a failed check is reported in `checkError`.
+
+### `POST /admin/update/install` (admin) → `202` same body, `state: "downloading"`
+Downloads the platform archive, verifies it against the release's `SHA256SUMS`, runs `<new> version`, swaps the executable (the old one is kept as `homestreaming.old[.exe]`) and restarts. The Windows service restarts through a detached helper (`homestreaming update finish`) that rolls back if the new version does not answer `GET /system/info` within 90 s; other setups end in `restart_required`. `409 conflict` with the reason when nothing can be installed (up to date, update in progress, container, program folder not writable).
+
 ### `GET /admin/fs?path=` (admin)
 Directory browser for the library setup. Without `path` on Windows returns drives; on Unix returns `/`.
 ```json

@@ -26,10 +26,14 @@ A personal media server and streaming app. It scans a movie/TV folder (torrent-s
    ```powershell
    winget install Gyan.FFmpeg
    ```
-2. Download `homestreaming-windows-amd64.zip` from the latest CI run (Actions → Artifacts) or from Releases, and unzip it.
+2. Download `homestreaming-windows-amd64.zip` from the [latest release](https://github.com/wtfits/HomeStreaming/releases/latest) and unzip it.
 3. Run `homestreaming.exe`, allow it through the firewall, and open <http://localhost:8420>.
 
 The full guide is [deploy/windows.md](deploy/windows.md).
+
+### Updates
+
+Every push to `main` that passes CI is published as a GitHub release (`v0.1.N`, with `SHA256SUMS`). The server checks for new releases every 6 hours; **Admin → Updates** installs one with a click (Windows service: restart and automatic rollback included). From a terminal: `homestreaming update` (or `update --check`). Docker installs update by pulling a new image.
 
 ### Docker (Linux server / NAS)
 

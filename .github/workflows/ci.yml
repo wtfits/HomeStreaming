@@ -60,6 +60,8 @@ jobs:
     name: Build release binaries
     runs-on: ubuntu-24.04
     needs: test
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,8 +72,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Pushes to main become release v0.1.<run number>; a pushed v* tag keeps
+      # its name; other branches get a dev version (git describe) that the
+      # in-app updater treats as "not a release".
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            v="${GITHUB_REF#refs/tags/}"
+          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]]; then
+            v="v0.1.${GITHUB_RUN_NUMBER}"
+          else
+            v="$(git describe --tags --always --dirty)"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       - name: Cross-compile (web client embedded)
-        run: make dist
+        run: make dist VERSION=${{ steps.version.outputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: homestreaming-windows-amd64
@@ -85,18 +104,51 @@ jobs:
             dist/homestreaming-darwin-arm64.tar.gz
 
   release:
-    name: GitHub release (tags v*)
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: GitHub release (main and v* tags)
+    if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04
     needs: [dist, e2e]
     permissions:
       contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.dist.outputs.version }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: homestreaming-*
           merge-multiple: true
+      # SHA256SUMS is what the in-app updater verifies downloads against.
+      - name: Checksums and release notes
+        run: |
+          (cd dist && sha256sum *.zip *.tar.gz > SHA256SUMS && cat SHA256SUMS)
+          prev="$(git describe --tags --abbrev=0 --match 'v*' --exclude "$VERSION" HEAD 2>/dev/null || true)"
+          {
+            if [ -n "$prev" ]; then
+              echo "Changes since $prev:"
+              echo
+              git log --no-merges --pretty='- %s' "$prev..HEAD"
+            else
+              echo "Changes:"
+              echo
+              git log --no-merges --pretty='- %s' -n 30
+            fi
+          } > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
-          generate_release_notes: true
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          body_path: notes.md
+          make_latest: true
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/SHA256SUMS

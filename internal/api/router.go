@@ -27,6 +27,7 @@ import (
 	"github.com/wtfits/homestreaming/internal/netutil"
 	"github.com/wtfits/homestreaming/internal/stream"
 	"github.com/wtfits/homestreaming/internal/tasks"
+	"github.com/wtfits/homestreaming/internal/update"
 )
 
 // Server is the HTTP API.
@@ -42,6 +43,7 @@ type Server struct {
 	Subs      *stream.Subtitles
 	Tools     *ffmpeg.Toolbox
 	Resolver  *netutil.Resolver
+	Updater   *update.Updater
 	Log       *slog.Logger
 	Version   string
 	StartedAt time.Time
@@ -123,6 +125,9 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/admin/settings", s.handleGetSettings)
 				r.Patch("/admin/settings", s.handlePatchSettings)
 				r.Get("/admin/problems", s.handleProblems)
+				r.Get("/admin/update", s.handleUpdateStatus)
+				r.Post("/admin/update/check", s.handleUpdateCheck)
+				r.Post("/admin/update/install", s.handleUpdateInstall)
 				r.Get("/admin/play-sessions", s.handleAdminSessions)
 				r.Get("/admin/play-sessions/{sid}", s.handleAdminSession)
 				r.Delete("/admin/play-sessions/{sid}", s.handleAdminStopSession)

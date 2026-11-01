@@ -27,14 +27,15 @@ func (p *program) Start(s service.Service) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	p.done = make(chan struct{})
-	a, err := app.New(ctx, cfg, app.Options{Version: version})
+	opts := app.Options{Version: version, Activate: updateActivator(cfg.DataDir, true)}
+	a, err := app.New(ctx, cfg, opts)
 	if err != nil {
 		cancel()
 		return err
 	}
 	go func() {
 		defer close(p.done)
-		if err := a.Run(ctx, app.Options{Version: version}); err != nil {
+		if err := a.Run(ctx, opts); err != nil {
 			a.Log.Error("server stopped", "err", err)
 		}
 	}()

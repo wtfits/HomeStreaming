@@ -24,6 +24,10 @@ function NavBar() {
   useEffect(() => {
     if (user) api<{ items: { id: string; name: string }[] }>('GET', '/libraries').then((r) => setLibs(r.items), () => undefined);
   }, [user && user.id]);
+  const [updateReady, setUpdateReady] = useState(false);
+  useEffect(() => {
+    if (user && user.isAdmin) api<{ available: boolean }>('GET', '/admin/update').then((r) => setUpdateReady(r.available), () => undefined);
+  }, [user && user.id, route.path === '/admin']);
   const active = (p: string) => (route.path === p || (p !== '/' && route.path.indexOf(p) === 0) ? ' active' : '');
   return (
     <header class="nav" data-nav-section>
@@ -48,6 +52,7 @@ function NavBar() {
         {user && user.isAdmin ? (
           <a class={'nav-link' + active('/admin')} href={href('/admin')}>
             {t('navAdmin')}
+            {updateReady ? <span class="nav-dot" title={t('updateAvailable')} aria-label={t('updateAvailable')} data-testid="update-dot" /> : null}
           </a>
         ) : null}
         <a class={'nav-link' + active('/settings')} href={href('/settings')}>

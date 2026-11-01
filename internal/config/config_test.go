@@ -85,6 +85,24 @@ func TestDefaultsAndConfigWritten(t *testing.T) {
 	}
 }
 
+func TestUpdateDefaultsAndEnv(t *testing.T) {
+	cfg, err := Load(Flags{DataDir: t.TempDir()}, func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Update.Check || cfg.Update.Repo != "wtfits/HomeStreaming" {
+		t.Fatalf("update defaults: %+v", cfg.Update)
+	}
+	env := map[string]string{"HS_UPDATE_CHECK": "0", "HS_UPDATE_REPO": "me/fork"}
+	cfg, err = Load(Flags{DataDir: t.TempDir()}, func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Update.Check || cfg.Update.Repo != "me/fork" {
+		t.Fatalf("update env: %+v", cfg.Update)
+	}
+}
+
 func TestInvalidHWAccel(t *testing.T) {
 	_, err := Load(Flags{DataDir: t.TempDir(), HWAccel: "bogus"}, func(string) string { return "" })
 	if err == nil {

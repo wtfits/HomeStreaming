@@ -3,6 +3,7 @@
 //	homestreaming [serve] [flags]          run the server (default)
 //	homestreaming doctor [flags]           print diagnostics
 //	homestreaming service install|uninstall|start|stop|status
+//	homestreaming update [--check]         install the latest release
 //	homestreaming version
 package main
 
@@ -55,12 +56,14 @@ func main() {
 		err = doctor(args)
 	case "service":
 		err = serviceCmd(args)
+	case "update":
+		err = updateCmd(args)
 	case "version", "--version":
 		fmt.Printf("homestreaming %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
-		fmt.Println("usage: homestreaming [serve|doctor|service install|uninstall|start|stop|status|version] [flags]")
+		fmt.Println("usage: homestreaming [serve|doctor|service install|uninstall|start|stop|status|update [--check]|version] [flags]")
 	default:
-		err = fmt.Errorf("unknown command %q (try: serve, doctor, service, version)", cmd)
+		err = fmt.Errorf("unknown command %q (try: serve, doctor, service, update, version)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

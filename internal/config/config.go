@@ -24,6 +24,7 @@ type Config struct {
 	FFmpeg    FFmpegConfig    `toml:"ffmpeg"`
 	Transcode TranscodeConfig `toml:"transcode"`
 	Log       LogConfig       `toml:"log"`
+	Update    UpdateConfig    `toml:"update"`
 }
 
 type HTTPConfig struct {
@@ -55,6 +56,12 @@ type LogConfig struct {
 	File  bool   `toml:"file"`
 }
 
+// UpdateConfig controls the automatic update check (Admin -> Updates).
+type UpdateConfig struct {
+	Check bool   `toml:"check"` // look for new releases every few hours
+	Repo  string `toml:"repo"`  // GitHub owner/name that publishes releases
+}
+
 // Flags holds command-line overrides; empty strings mean "not set".
 type Flags struct {
 	DataDir      string
@@ -76,6 +83,7 @@ func Defaults() Config {
 		TLS:       TLSConfig{Addr: ":8443"},
 		Transcode: TranscodeConfig{HWAccel: "auto", HWDecode: true},
 		Log:       LogConfig{Level: "info", File: true},
+		Update:    UpdateConfig{Check: true, Repo: "wtfits/HomeStreaming"},
 	}
 }
 
@@ -160,6 +168,9 @@ func Load(f Flags, getenv func(string) string) (*Config, error) {
 	if cfg.HTTP.Addr == "" {
 		cfg.HTTP.Addr = ":8420"
 	}
+	if cfg.Update.Repo == "" {
+		cfg.Update.Repo = "wtfits/HomeStreaming"
+	}
 	return &cfg, nil
 }
 
@@ -178,6 +189,13 @@ func applyEnv(cfg *Config, getenv func(string) string) {
 	set(&cfg.Transcode.Dir, "HS_TRANSCODE_DIR")
 	set(&cfg.Transcode.HWAccel, "HS_HWACCEL")
 	set(&cfg.Log.Level, "HS_LOG_LEVEL")
+	set(&cfg.Update.Repo, "HS_UPDATE_REPO")
+	switch strings.ToLower(getenv("HS_UPDATE_CHECK")) {
+	case "0", "false", "no", "off":
+		cfg.Update.Check = false
+	case "1", "true", "yes", "on":
+		cfg.Update.Check = true
+	}
 	if v := getenv("HS_TRUSTED_PROXIES"); v != "" {
 		cfg.HTTP.TrustedProxies = splitList(v)
 	}
@@ -289,4 +307,8 @@ hw_decode = true              # allow NVDEC when the self-test passes
 [log]
 level = "info"                # debug|info|warn|error
 file = true                   # <data>/logs/homestreaming.log, 20 MB x 5 rotated
+
+[update]
+check = true                  # look for new releases every 6 hours (Admin -> Updates installs them)
+repo = "wtfits/HomeStreaming" # GitHub repository that publishes the releases
 `

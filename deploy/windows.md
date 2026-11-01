@@ -4,8 +4,10 @@ This is the setup for the current server PC: Windows 11, RTX 4090, media in `F:\
 
 ## 1. Get the program
 
-1. Open the repository on GitHub → **Actions** → the latest successful **CI** run on your branch → **Artifacts** → download **homestreaming-windows-amd64**. (After a version tag such as `v0.1.0` is pushed, the same zip is attached to **Releases**.)
+1. Open <https://github.com/wtfits/HomeStreaming/releases/latest> and download **homestreaming-windows-amd64.zip** (no GitHub sign-in needed). Every push to `main` that passes CI is published there as a new version (`v0.1.N`).
 2. Unzip it to `C:\Program Files\HomeStreaming\`. You should have `C:\Program Files\HomeStreaming\homestreaming.exe`.
+
+This is the only manual download: after that, HomeStreaming updates itself (see [Updating](#updating)).
 
 ## 2. ffmpeg
 
@@ -91,15 +93,24 @@ Runtime settings (remote bitrate cap, max simultaneous transcodes, scan interval
 
 ## Updating
 
+HomeStreaming checks GitHub for a new release every 6 hours. When one is out, the **Admin** link shows a dot and **Admin → Updates** shows what changed with an **Install** button. Installing:
+
+1. downloads `homestreaming-windows-amd64.zip` from the release and checks it against the release's `SHA256SUMS`;
+2. runs the new `homestreaming.exe version` to make sure it starts on this PC;
+3. renames the current program to `homestreaming.old.exe` and puts the new one in its place;
+4. restarts the service. If the new version does not answer within 90 seconds, the old one is put back and restarted automatically, and Admin → Updates says why.
+
+Playback stops for about 30 seconds during the restart; the page reloads by itself when the new version is up. A log of each restart is in `C:\ProgramData\HomeStreaming\logs\update.log`.
+
+One-click install needs the Windows service (step 4), because only the service can write to `C:\Program Files`. If you run HomeStreaming in a terminal instead, Admin → Updates says so; install from an **Administrator** PowerShell and restart it yourself:
+
 ```powershell
-& 'C:\Program Files\HomeStreaming\homestreaming.exe' service stop
+& 'C:\Program Files\HomeStreaming\homestreaming.exe' update
 ```
 
-Replace `homestreaming.exe` with the new version, then:
+`update --check` only reports whether a new version exists. The same `update` command, run as Administrator while the service is running, also restarts the service and rolls back on failure.
 
-```powershell
-& 'C:\Program Files\HomeStreaming\homestreaming.exe' service start
-```
+To stop the automatic checks, set `check = false` under `[update]` in `config.toml`. To go back to the previous version by hand: `service stop`, rename `homestreaming.old.exe` to `homestreaming.exe`, `service start`.
 
 ## Troubleshooting
 

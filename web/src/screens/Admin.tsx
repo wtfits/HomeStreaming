@@ -3,6 +3,7 @@ import { api, ApiError, ItemSummary, Library, Task } from '../api';
 import { ErrorBox, Spinner, toast, useAsync } from '../components/ui';
 import { t } from '../i18n/en';
 import { FolderPicker } from './FolderPicker';
+import { UpdatesCard } from './Updates';
 
 interface Status {
   version: string;
@@ -103,6 +104,8 @@ export function Admin() {
           </details>
         ) : null}
       </section>
+
+      <UpdatesCard />
 
       <section class="card-section">
         <h2>{t('activeSessions')}</h2>

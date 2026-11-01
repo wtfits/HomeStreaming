@@ -13,7 +13,7 @@ CGO_ENABLED=0 go build -o "$WORK/homestreaming" ./cmd/homestreaming
 ./scripts/make-test-media.sh "$WORK/media/Movies-and-TV"
 
 PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')"
-"$WORK/homestreaming" serve --data-dir "$WORK/data" --addr "127.0.0.1:$PORT" --hwaccel none >"$WORK/server.log" 2>&1 &
+HS_UPDATE_CHECK=0 "$WORK/homestreaming" serve --data-dir "$WORK/data" --addr "127.0.0.1:$PORT" --hwaccel none >"$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 50); do
   curl -sf "http://127.0.0.1:$PORT/api/v1/system/ping" >/dev/null && break
