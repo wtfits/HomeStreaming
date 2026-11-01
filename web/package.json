@@ -1,0 +1,21 @@
+{
+  "name": "homestreaming-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node ../scripts/check-es-target.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "node -e \"require('fs').rmSync('dist/assets',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "hls.js": "1.6.19",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

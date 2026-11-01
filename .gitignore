@@ -15,3 +15,4 @@ node_modules/
 *.db-wal
 *.db-shm
 .tmp/
+state.json
