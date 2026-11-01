@@ -61,6 +61,14 @@ func Open(path string) (*DB, error) {
 	return d, nil
 }
 
+// CheckWritable performs a small write; it fails when SQLite fell back to a
+// read-only open (the OS denied write access to the database file).
+func (d *DB) CheckWritable(ctx context.Context) error {
+	_, err := d.W.ExecContext(ctx, `INSERT INTO settings(key, value, updated_at) VALUES('last_start', ?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, Now(), Now())
+	return err
+}
+
 // Close checkpoints the WAL and closes both pools.
 func (d *DB) Close() error {
 	_, _ = d.W.Exec("PRAGMA wal_checkpoint(TRUNCATE)")

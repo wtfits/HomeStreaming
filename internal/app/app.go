@@ -58,10 +58,21 @@ func New(ctx context.Context, cfg *config.Config, opt Options) (*App, error) {
 	for _, d := range []string{"images", "cache", "logs"} {
 		_ = os.MkdirAll(filepath.Join(cfg.DataDir, d), 0o755)
 	}
-	d, err := db.Open(filepath.Join(cfg.DataDir, "homestreaming.db"))
+	dbPath := filepath.Join(cfg.DataDir, "homestreaming.db")
+	d, err := db.Open(dbPath)
 	if err != nil {
 		closeLog()
 		return nil, err
+	}
+	if err := d.CheckWritable(ctx); err != nil {
+		d.Close()
+		closeLog()
+		if strings.Contains(err.Error(), "readonly") || strings.Contains(err.Error(), "read-only") {
+			return nil, fmt.Errorf("the database %s is read-only for this account. It was probably created by another account "+
+				"(an Administrator prompt or the Windows service). Fix it once from an Administrator prompt:\n  %s\n"+
+				"or run HomeStreaming as the Windows service (homestreaming service install)", dbPath, config.UsersModifyCommand(cfg.DataDir))
+		}
+		return nil, fmt.Errorf("database %s is not writable: %w", dbPath, err)
 	}
 	kv, _ := d.GetSettings(ctx)
 	serverID := kv["server_id"]

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/wtfits/homestreaming/internal/db"
 )
@@ -44,8 +45,15 @@ func notFound(w http.ResponseWriter, msg string) {
 }
 
 func (s *Server) internal(w http.ResponseWriter, r *http.Request, err error) {
-	s.Log.Error("internal error", "method", r.Method, "path", r.URL.Path, "requestId", w.Header().Get("X-Request-Id"), "err", err)
-	writeError(w, http.StatusInternalServerError, "internal", "internal error (see server log, request id "+w.Header().Get("X-Request-Id")+")", nil)
+	rid := w.Header().Get("X-Request-Id")
+	s.Log.Error("internal error", "method", r.Method, "path", r.URL.Path, "requestId", rid, "err", err)
+	msg := "internal error (see server log, request id " + rid + ")"
+	// Show the cause to the server's admin (and during first-run setup, when
+	// nobody can sign in yet); other callers only get the request id.
+	if id := ident(r); (id != nil && id.User.IsAdmin) || strings.HasPrefix(r.URL.Path, "/api/v1/system/setup") {
+		msg = "internal error: " + err.Error() + " (request id " + rid + ")"
+	}
+	writeError(w, http.StatusInternalServerError, "internal", msg, nil)
 }
 
 // dbErr maps db.ErrNotFound to 404 and anything else to 500.

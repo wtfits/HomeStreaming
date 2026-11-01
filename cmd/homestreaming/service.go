@@ -117,6 +117,12 @@ func serviceCmd(args []string) error {
 		}
 		fmt.Println("Service installed. Start it with: homestreaming service start")
 		addFirewallRule()
+		if cfg, err := config.Load(f, nil); err == nil {
+			// Let console runs (as a normal user) share the service's data.
+			if err := config.GrantUsersModify(cfg.DataDir, true); err == nil && runtime.GOOS == "windows" {
+				fmt.Println("Data folder permissions updated:", cfg.DataDir)
+			}
+		}
 	case "uninstall":
 		_ = s.Stop()
 		if err := s.Uninstall(); err != nil {

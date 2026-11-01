@@ -124,8 +124,14 @@ func Load(f Flags, getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("data dir: %w", err)
 	}
 	cfg.DataDir = abs
+	_, statErr := os.Stat(cfg.DataDir)
 	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create data dir %s: %w", cfg.DataDir, err)
+	}
+	if errors.Is(statErr, os.ErrNotExist) {
+		// Console runs, elevated prompts and the Windows service share this
+		// directory; make files created by any of them writable by all.
+		_ = GrantUsersModify(cfg.DataDir, false)
 	}
 	cfg.ConfigPath = filepath.Join(cfg.DataDir, "config.toml")
 
