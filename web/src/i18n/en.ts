@@ -104,6 +104,9 @@ export const en = {
   fullscreen: 'Fullscreen',
   rewind: 'Back 10 s',
   forward: 'Forward 10 s',
+  mute: 'Mute',
+  unmute: 'Unmute',
+  volume: 'Volume',
 
   // Settings
   settingsTitle: 'Settings',

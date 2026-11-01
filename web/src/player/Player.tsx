@@ -53,6 +53,11 @@ export function Player({ route }: { route: Route }) {
   const [nextEp, setNextEp] = useState<ItemSummary | null>(null);
   const [upNext, setUpNext] = useState<number | null>(null);
   const [subId, setSubId] = useState<string | null>(null);
+  const [volume, setVolumeState] = useState(() => {
+    const s = parseFloat(prefs.get('volume') || '');
+    return isNaN(s) ? 1 : Math.max(0, Math.min(1, s));
+  });
+  const [muted, setMutedState] = useState(() => prefs.get('muted') === '1');
 
   const runtime = (info && info.runtimeMs) || (item && item.runtimeMs) || 0;
   const absPos = () => {
@@ -265,6 +270,16 @@ export function Player({ route }: { route: Route }) {
       if (!hlsRef.current && v.error) onMediaError('media error ' + v.error.code);
     };
     const onSeeked = () => report(v.paused ? 'paused' : 'playing');
+    // Volume: restore the saved level, then mirror every change (slider, keys, OS) into state + prefs.
+    v.volume = volume;
+    v.muted = muted;
+    const onVolume = () => {
+      setVolumeState(v.volume);
+      setMutedState(v.muted);
+      prefs.set('volume', String(Math.round(v.volume * 100) / 100));
+      prefs.set('muted', v.muted ? '1' : null);
+    };
+    v.addEventListener('volumechange', onVolume);
     v.addEventListener('timeupdate', onTime);
     v.addEventListener('play', onPlay);
     v.addEventListener('pause', onPause);
@@ -288,6 +303,7 @@ export function Player({ route }: { route: Route }) {
       v.removeEventListener('ended', onEnded);
       v.removeEventListener('error', onErr);
       v.removeEventListener('seeked', onSeeked);
+      v.removeEventListener('volumechange', onVolume);
       window.removeEventListener('pagehide', onHide);
     };
   }, []);
@@ -375,6 +391,24 @@ export function Player({ route }: { route: Route }) {
     }
     setPos(A);
     start({ startMs: A, audio: i.audioTrackId, sub: i.subtitleTrackId, replaces: i.playSessionId });
+  };
+
+  const changeVolume = (vol: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.volume = Math.max(0, Math.min(1, vol));
+    v.muted = v.volume === 0;
+    poke();
+  };
+
+  const toggleMute = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.muted || v.volume === 0) {
+      if (v.volume === 0) v.volume = 0.5;
+      v.muted = false;
+    } else v.muted = true;
+    poke();
   };
 
   const skip = (ms: number) => {
@@ -485,7 +519,7 @@ export function Player({ route }: { route: Route }) {
             setTimeout(() => playBtnRef.current && focusEl(playBtnRef.current), 20);
             return true;
           }
-          if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, videoRef.current.volume + (k === KEY.UP ? 0.1 : -0.1)));
+          if (videoRef.current) changeVolume(videoRef.current.volume + (k === KEY.UP ? 0.1 : -0.1));
           return true;
         case KEY.ENTER:
           if (tv) {
@@ -498,7 +532,7 @@ export function Player({ route }: { route: Route }) {
           togglePlay();
           return true;
         case 77: // m
-          if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
+          toggleMute();
           return true;
         case 70: // f
           fullscreen();
@@ -618,6 +652,25 @@ export function Player({ route }: { route: Route }) {
           <button class="icon-btn" onClick={() => skip(10000)} aria-label={t('forward')}>
             10⟳
           </button>
+          {isTV() ? null : (
+            <div class="volume">
+              <button class="icon-btn" onClick={toggleMute} aria-label={muted || volume === 0 ? t('unmute') : t('mute')} data-testid="mute">
+                {muted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
+              </button>
+              {isIOS() ? null : (
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={muted ? 0 : Math.round(volume * 100)}
+                  aria-label={t('volume')}
+                  data-testid="volume"
+                  onInput={(e) => changeVolume(parseInt((e.target as HTMLInputElement).value, 10) / 100)}
+                />
+              )}
+            </div>
+          )}
           <div class="spacer" />
           <span class="method muted small" title={why} data-testid="method">
             {methodLabel}

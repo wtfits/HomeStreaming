@@ -903,6 +903,18 @@ input[type='range'] {
 .spacer {
   flex: 1;
 }
+.volume {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+.volume input {
+  width: 100px;
+  height: 28px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
 .method {
   margin-right: 10px;
 }

@@ -22,6 +22,20 @@ test('direct play H.264 MP4', async ({ page }) => {
   expect(body.method).toBe('direct');
   await expectPlaying(page);
   await expect(page.getByTestId('method')).toContainText('Direct play');
+
+  // Volume slider + mute button drive the <video> element and persist across reloads.
+  const vol = () => page.getByTestId('video').evaluate((v: HTMLVideoElement) => ({ volume: v.volume, muted: v.muted }));
+  await page.getByTestId('volume').fill('30');
+  await expect.poll(async () => (await vol()).volume).toBeCloseTo(0.3, 2);
+  await page.getByTestId('mute').click();
+  await expect.poll(async () => (await vol()).muted).toBe(true);
+  await expect(page.getByTestId('volume')).toHaveValue('0');
+  await page.screenshot({ path: shotDir + '/05b-player-volume.png' });
+  await page.reload();
+  await expect.poll(vol).toEqual({ volume: 0.3, muted: true });
+  await page.getByTestId('mute').click();
+  await expect.poll(async () => (await vol()).muted).toBe(false);
+  await expect(page.getByTestId('volume')).toHaveValue('30');
 });
 
 test('HEVC 10-bit HDR transcodes with tone mapping', async ({ page }) => {
