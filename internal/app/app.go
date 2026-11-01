@@ -82,7 +82,13 @@ func New(ctx context.Context, cfg *config.Config, opt Options) (*App, error) {
 		}
 		caps := tools.Caps()
 		if caps.Configured != "none" && caps.Active == "none" && len(caps.SelfTests) > 0 {
-			log.Warn("hardware transcoding unavailable; using software (libx264)", "configured", caps.Configured, "selfTests", fmt.Sprint(caps.SelfTests))
+			var failed []string
+			for _, t := range caps.SelfTests {
+				if !t.OK {
+					failed = append(failed, t.Backend+": "+lastLine(t.Detail))
+				}
+			}
+			log.Warn("hardware transcoding unavailable; using software (libx264)", "configured", caps.Configured, "failed", strings.Join(failed, " | "))
 		} else {
 			log.Info("transcoding backend", "configured", caps.Configured, "active", caps.Active, "hwDecode", caps.HWDecode)
 		}
@@ -117,6 +123,17 @@ func New(ctx context.Context, cfg *config.Config, opt Options) (*App, error) {
 		log.Warn("web client not embedded in this build (run `make web` before building)")
 	}
 	return a, nil
+}
+
+func lastLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+		s = s[i+1:]
+	}
+	if len(s) > 120 {
+		s = s[:120]
+	}
+	return s
 }
 
 func (a *App) scanAll(ctx context.Context) {

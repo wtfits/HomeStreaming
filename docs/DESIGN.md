@@ -10,7 +10,7 @@ This document is the implementation contract for Phase 1 (MVP) plus the design h
 
 | Area | Decision |
 |---|---|
-| Server language | **Go 1.24**, single static binary, `CGO_ENABLED=0`, cross-compiled for windows/amd64 (primary), linux/amd64, linux/arm64, darwin/arm64 |
+| Server language | **Go 1.26** (current dependency versions require it; `GOTOOLCHAIN=auto` fetches it), single static binary, `CGO_ENABLED=0`, cross-compiled for windows/amd64 (primary), linux/amd64, linux/arm64, darwin/arm64 |
 | Database | **SQLite** via `modernc.org/sqlite` (pure Go), WAL mode, one file in the data dir |
 | HTTP | `net/http` + `github.com/go-chi/chi/v5`; JSON API under `/api/v1`; web client embedded with `go:embed` |
 | Media tooling | External **ffmpeg/ffprobe ≥ 6.1** (on the PC: Gyan full build installed via `winget install Gyan.FFmpeg`; path auto-located or configured; a missing ffmpeg is reported loudly) |
@@ -54,7 +54,7 @@ This document is the implementation contract for Phase 1 (MVP) plus the design h
 
 | Concern | Choice | Why |
 |---|---|---|
-| Language | Go 1.24 | One static binary per OS/arch, trivial cross-compile without cgo, excellent stdlib HTTP, easy process control of ffmpeg, easy Windows service |
+| Language | Go 1.26 | One static binary per OS/arch, trivial cross-compile without cgo, excellent stdlib HTTP, easy process control of ffmpeg, easy Windows service |
 | Router | `github.com/go-chi/chi/v5` | Small, idiomatic, middleware chain, route groups |
 | DB driver | `modernc.org/sqlite` | Pure Go → no cgo, cross-compiles to windows/arm64 |
 | Migrations | Own 60-line migrator: embedded `internal/db/migrations/NNNN_name.sql`, `schema_migrations(version)` table | No extra dependency |
@@ -66,7 +66,7 @@ This document is the implementation contract for Phase 1 (MVP) plus the design h
 | Logs | `log/slog` + `gopkg.in/natefinch/lumberjack.v2` | Structured logs; rotating file |
 | Service | `github.com/kardianos/service` | Windows service / systemd / launchd install from the binary |
 | Windows syscalls | `golang.org/x/sys/windows` | Drive enumeration, process creation flags |
-| Tests | `github.com/stretchr/testify` | Assertions |
+| Tests | standard library `testing` | No assertion library needed |
 | Phase 2 | `github.com/huin/goupnp` (UPnP IGD), `golang.org/x/crypto/acme/autocert` (ACME) | — |
 
 No ORM, no code generation. SQL is hand-written in `internal/db/*.go`.
@@ -77,9 +77,9 @@ No ORM, no code generation. SQL is hand-written in `internal/db/*.go`.
 |---|---|---|
 | Framework | Preact 10 + TypeScript 5 (`@preact/preset-vite`) | Tiny bundle for the TV; React-like ergonomics |
 | Build | Vite 7, `build.target: ['chrome79', 'safari13']` | webOS 6.0 is Chromium ~79; esbuild lowers `?.`, `??`, etc. |
-| Routing | `wouter-preact` with the hash location hook | Hash routes work identically when served by the server, from `file://` in the Phase 2 webOS IPK, and need no server fallback |
+| Routing | Own 60-line hash router (`web/src/router.ts`) | Hash routes work identically when served by the server, from `file://` in the Phase 2 webOS IPK, and need no server fallback |
 | Player | `<video>` + `hls.js` (MSE) or native HLS (Safari) | iPhone Safari has no MSE for our purposes; everything else uses hls.js |
-| State | Preact signals (`@preact/signals`) | Minimal |
+| State | Tiny subscribe/notify store (`web/src/state.ts`) | Minimal, no extra dependency |
 | Styling | Plain CSS with custom properties, BEM-ish classes. No Tailwind | Fewer moving parts; must stay Chrome-79-safe (see Appendix D) |
 | PWA | Hand-written `manifest.webmanifest` + minimal `sw.js` (app-shell cache only, never media) | iPhone "Add to Home Screen" |
 | i18n | `web/src/i18n/en.ts` + `t(key, params)` helper; English only | Ready for Turkish later |
@@ -87,7 +87,7 @@ No ORM, no code generation. SQL is hand-written in `internal/db/*.go`.
 
 ### 1.3 Tooling present in the build container
 
-Go 1.24.7, Node 22 / npm 10, ffmpeg/ffprobe 6.1.1 (libx264, libx265, libvpx, libaom/svt-av1, libass, libzimg/zscale, libplacebo; nvenc/qsv/vaapi encoders compiled in but no GPU), Playwright 1.63.0 with Chromium 153 at `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH` is set), Google Chrome for Testing at `/usr/bin/google-chrome`, Docker 29. Verified: the bundled headless Chromium decodes H.264/AAC/VP9/AV1/Opus/FLAC and plays MKV; it does **not** decode HEVC or AC‑3/E‑AC‑3 (useful to force the remux/transcode paths in tests).
+Go 1.26 (auto-downloaded toolchain; 1.24.7 preinstalled), Node 22 / npm 10, ffmpeg/ffprobe 6.1.1 (libx264, libx265, libvpx, libaom/svt-av1, libass, libzimg/zscale, libplacebo; nvenc/qsv/vaapi encoders compiled in but no GPU), Playwright 1.63.0 with Chromium 153 at `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH` is set), Google Chrome for Testing at `/usr/bin/google-chrome`, Docker 29. Verified: the bundled headless Chromium decodes H.264/AAC/VP9/AV1/Opus/FLAC and plays MKV; it does **not** decode HEVC or AC‑3/E‑AC‑3 (useful to force the remux/transcode paths in tests).
 
 ---
 
@@ -812,7 +812,7 @@ make test-e2e   # scripts/e2e.sh (see §10)
 make docker     # docker buildx build --platform linux/amd64,linux/arm64 -f deploy/Dockerfile .
 ```
 
-- **Dockerfile** (multi-stage): `node:22` builds the client → `golang:1.24` builds the binary (`CGO_ENABLED=0`, `GOARCH` from `TARGETARCH`) → runtime `ubuntu:24.04` + `apt-get install -y --no-install-recommends ffmpeg ca-certificates tzdata` (ffmpeg 6.1.1, identical to the dev container), user `hs` (uid 1000), `VOLUME /data`, `EXPOSE 8420`, `ENV HS_DATA_DIR=/data`, `ENTRYPOINT ["/usr/local/bin/homestreaming"]`. `deploy/docker-compose.yml` mounts `/data` and `/media:ro`, with commented `devices:` lines for `/dev/dri` (VAAPI/QSV) and the `nvidia` runtime.
+- **Dockerfile** (multi-stage): `node:22` builds the client → `golang:1.26` builds the binary (`CGO_ENABLED=0`, `GOARCH` from `TARGETARCH`) → runtime `ubuntu:24.04` + `apt-get install -y --no-install-recommends ffmpeg ca-certificates tzdata` (ffmpeg 6.1.1, identical to the dev container), user `hs` (uid 1000), `VOLUME /data`, `EXPOSE 8420`, `ENV HS_DATA_DIR=/data`, `ENTRYPOINT ["/usr/local/bin/homestreaming"]`. `deploy/docker-compose.yml` mounts `/data` and `/media:ro`, with commented `devices:` lines for `/dev/dri` (VAAPI/QSV) and the `nvidia` runtime.
 - **Windows** (`deploy/windows.md`): unzip to `C:\Program Files\HomeStreaming\`; `homestreaming.exe` runs in a console (first run prompts Windows Defender Firewall → tick both Private and Public so the Tailscale adapter is covered; the LAN profile is Private). Service: `homestreaming service install [--user .\username --password …]` (via `kardianos/service`; runs as LocalSystem by default — fine for local drives such as `F:\`; use `--user` for SMB shares), then `service start`; `service install` also runs `netsh advfirewall firewall add rule name="HomeStreaming" dir=in action=allow protocol=TCP localport=8420 profile=any` when elevated (printed as a hint otherwise). Logs go to the data dir (the service has no console). Network hygiene documented there: assign the PC a static IP outside the DHCP pool (e.g. `192.168.0.5/24`, gateway `192.168.0.1`) or a DHCP reservation on the router, so TV/iPhone bookmarks and (Phase 2) DLNA stay stable; disable sleep while the PC is a server (**deferred**: `SetThreadExecutionState` during active sessions); Tailscale "Run unattended" (§8.1).
 - **Linux**: `deploy/homestreaming.service` (`User=homestreaming`, `ExecStart=/usr/local/bin/homestreaming --data-dir /var/lib/homestreaming`, `SupplementaryGroups=video render`, `Restart=on-failure`); or `homestreaming service install` which writes the same unit.
 - Startup banner prints all listen URLs including LAN IPv4s (e.g. `http://192.168.0.13:8420`).

@@ -1,12 +1,25 @@
 # HomeStreaming — Roadmap
 
-Phase 1 is what the implementer builds now, in one focused session, and verifies inside the Linux build container (Go 1.24, Node 22, ffmpeg 6.1, Playwright + Chromium). Later phases are ordered by value for this user's setup (Windows PC with RTX 4090, torrent folder of mostly Rus/Eng 4K TV, iPhone 14 Pro, LG A1 webOS 6 TV, CGNAT + Tailscale).
+Phase 1 is what the implementer builds now, in one focused session, and verifies inside the Linux build container (Go 1.26, Node 22, ffmpeg 6.1, Playwright + Chromium). Later phases are ordered by value for this user's setup (Windows PC with RTX 4090, torrent folder of mostly Rus/Eng 4K TV, iPhone 14 Pro, LG A1 webOS 6 TV, CGNAT + Tailscale).
 
 Design reference: [DESIGN.md](DESIGN.md). API reference: [API.md](API.md).
 
 ---
 
-## Phase 1 — MVP (build now)
+## Phase 1 — MVP ✅ implemented
+
+**Status (2026-11-01):** implemented and verified in the build container:
+- `go test -race ./...` green: the decision-engine truth table (29 cases), naming fixtures from the real library, scanner/watcher integration, and API end-to-end tests with real HLS transcode/remux sessions, seek restarts, HDR tone-map output checks, subtitles, bitrate policy, auth hardening and NVENC→software fallback.
+- `./scripts/e2e.sh` green: 10 Playwright tests over desktop, iPhone-emulated and webOS-emulated Chromium.
+- `make dist` cross-compiles Windows/Linux/macOS archives, and `deploy/Dockerfile` builds and runs.
+
+Remaining Phase 1 checks need the real hardware and are manual (follow `deploy/windows.md`): NVENC/NVDEC self-tests on the RTX 4090, scanning `F:\torrent`, playback on the LG A1 browser and iPhone Safari, and remote playback over Tailscale.
+
+Deviations from the original spec:
+- Go 1.26 instead of 1.24.
+- Own hash router and store instead of wouter/signals.
+- The scan of the test tree yields 8 episodes. The fixture list always had 8; "9" was a typo.
+- A library-grid "Problems" badge was not added; problems are listed in Admin.
 
 Goal: browse a mixed movie/TV folder and play it in a browser on PC, iPhone and the LG TV's browser over the LAN, with remux/transcode fallback (software in the container, NVENC on the PC), resume, a single admin user with login, and the packaging needed to run on the Windows PC today and on a Linux/ARM64 box later.
 
@@ -65,7 +78,7 @@ Acceptance:
 - Artwork: local files by name only (random `banner.jpg` ignored); extracted thumb (10 %) and backdrop (25 %) with HDR tonemap for HDR sources; `?w=` resize cache with ETag/304.
 - Watcher: adding a file to a library root creates the item without a full rescan (API test with settle time shortened via test hook, default 30 s); `.part` → nothing; rename `.!qB` → final name → item; delete → `missing`; new subdirectories are watched.
 - Periodic quick scan every `scan_interval_hours`; scan on startup; manual scan; concurrent scan request on the same library → `409` with the running task.
-- Scan of the test tree in DESIGN §10 yields exactly: 4 movies, 5 series (Widow's Bay, Over the Garden Wall 2014, Better Call Saul, Arrested Development, Pluribus), 9 episodes, 2 ignored-incomplete, 1 unsupported, ≥2 ignored-sample/junk.
+- Scan of the test tree in DESIGN §10 yields exactly: 4 movies, 5 series (Widow's Bay, Over the Garden Wall 2014, Better Call Saul, Arrested Development, Pluribus), 8 episodes, 2 ignored-incomplete, 1 unsupported, ≥2 ignored-sample/junk.
 
 ### P1.5 Browse API, home, search, images
 

@@ -23,7 +23,9 @@ done
 export HS_BASE_URL="http://127.0.0.1:$PORT"
 export HS_MEDIA_DIR="$WORK/media/Movies-and-TV"
 export HS_SHOTS="${HS_SHOTS:-$ROOT/e2e/test-results/shots}"
-export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d /opt/pw-browsers ]; then
+  export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers   # preinstalled in Claude Code cloud sessions
+fi
 cd e2e
 [ -d node_modules ] || npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 rm -f state.json

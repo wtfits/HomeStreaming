@@ -1,0 +1,25 @@
+# Linux server / NAS deployment. Edit the media path, then: docker compose up -d
+services:
+  homestreaming:
+    image: homestreaming:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: homestreaming
+    restart: unless-stopped
+    ports:
+      - "8420:8420"
+    environment:
+      HS_DATA_DIR: /data
+      # HS_HWACCEL: vaapi          # Intel/AMD iGPU (also uncomment devices below)
+    volumes:
+      - ./data:/data
+      - /srv/media:/media:ro       # in the web UI, add the library path /media/torrent
+    # Intel QSV / VAAPI:
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # NVIDIA (requires nvidia-container-toolkit; the Ubuntu ffmpeg has nvenc):
+    # runtime: nvidia
+    # environment:
+    #   NVIDIA_VISIBLE_DEVICES: all
+    #   NVIDIA_DRIVER_CAPABILITIES: compute,video,utility

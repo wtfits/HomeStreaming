@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go tests + web build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Build web client (includes Chrome 79 target check)
+        run: cd web && npm ci --no-audit --no-fund && npm run build
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+
+  e2e:
+    name: Playwright E2E (desktop, iPhone, webOS)
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Install Playwright Chromium
+        run: cd e2e && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: Run E2E
+        run: ./scripts/e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: e2e/test-results
+          retention-days: 7
+
+  dist:
+    name: Build release binaries
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cross-compile (web client embedded)
+        run: make dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homestreaming-windows-amd64
+          path: dist/homestreaming-windows-amd64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homestreaming-linux-and-mac
+          path: |
+            dist/homestreaming-linux-amd64.tar.gz
+            dist/homestreaming-linux-arm64.tar.gz
+            dist/homestreaming-darwin-arm64.tar.gz
+
+  release:
+    name: GitHub release (tags v*)
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    needs: [dist, e2e]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
