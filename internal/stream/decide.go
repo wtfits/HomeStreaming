@@ -184,15 +184,13 @@ func Decide(in Input) Decision {
 	if !bitrateOK {
 		reasons = addReason(reasons, "bitrate")
 	}
-	audioOK := true
+	// Direct play checks audioCodecs; HLS sessions check hlsAudioCodecs.
 	hlsAudioOK := audio != nil && contains(p.hlsAudio(), audio.Codec) && audio.Channels <= p.MaxAudioChannels
 	if audio != nil {
 		if !contains(p.AudioCodecs, audio.Codec) {
-			audioOK = false
 			reasons = addReason(reasons, "audio_codec")
 		}
 		if audio.Channels > p.MaxAudioChannels {
-			audioOK = false
 			reasons = addReason(reasons, "audio_channels")
 		}
 		if fa := firstAudio(in.Streams); fa != nil && fa.Index != audio.Index {
