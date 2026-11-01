@@ -24,6 +24,13 @@ Personal media server: Go 1.26 single binary (`cmd/homestreaming`) + Preact/Type
 - The headless Chromium decodes H.264/AAC/VP9/Opus but not HEVC/AC-3 — that is what exercises the remux/transcode paths in E2E.
 - In this sandbox, Docker builds need the proxy CA (`/root/.ccr/ca-bundle.crt`) injected into build stages; never commit it.
 
+## Releases and self-update
+
+- Every push to `main` that passes CI becomes GitHub release `v0.1.<run number>` (zips/tarballs + `SHA256SUMS`), and the user's server offers it in **Admin → Updates** within 6 h. So: work on a branch, let CI go green there, then fast-forward `main` (`git push origin HEAD:main`) only for changes meant to ship. Docs-only commits can ride along with the next real change.
+- Branch builds get a `git describe` version, which the updater treats as a dev build (any release counts as newer).
+- Updater: `internal/update` (stdlib only). Windows service restarts via the detached `homestreaming update finish` helper with rollback to `homestreaming.old.exe`; outcomes in `<data>/update/result.json` and `<data>/logs/update.log`. E2E runs with `HS_UPDATE_CHECK=0`.
+- Cloud sandbox: proxy.golang.org is blocked, so Go 1.26 cannot be fetched. `internal/update` can still be tested with the preinstalled Go 1.25 through a temporary `-modfile` (go 1.25, `GOTOOLCHAIN=local GOPROXY=direct GOSUMDB=off`); everything else is verified by CI (`gh run watch`).
+
 ## User's setup (design inputs)
 
 Windows 11 PC (Ryzen 9 7950X, RTX 4090 → NVENC), media `F:\torrent`, LG OLED65A16LA (webOS 6, no DTS), iPhone 14 Pro (iOS 27), ISP behind CGNAT with 10 Mbps upload → Tailscale for remote access, 6 Mbps remote cap. Deployment guide: `deploy/windows.md`.
